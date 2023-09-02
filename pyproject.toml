@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "diane-be"
+version = "0.1.0"
+description = ""
+authors = ["Artem Moskvin <artemm@spotify.com>"]
+readme = "README.md"
+packages = [{include = "diane_be"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
