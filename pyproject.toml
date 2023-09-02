@@ -2,12 +2,19 @@
 name = "diane-be"
 version = "0.1.0"
 description = ""
-authors = ["Artem Moskvin <artemm@spotify.com>"]
+authors = ["Artem Moskvin <amoskvin@me.com>"]
 readme = "README.md"
 packages = [{include = "diane_be"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+openai = "^0.28.0"
+python-dotenv = "^1.0.0"
+flask = "^2.3.3"
+langchain = "^0.0.279"
+llama-index = "^0.8.16"
+nltk = "^3.8.1"
+gunicorn = "^21.2.0"
 
 
 [build-system]
