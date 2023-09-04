@@ -1,5 +1,5 @@
 from unittest.mock import ANY
-from langchain.schema import HumanMessage
+from langchain.schema import HumanMessage, AIMessage
 from llama_index import Document, Response
 import pytest
 
@@ -20,7 +20,7 @@ class TestNotesAssistant:
         return NotesAssistant(mock_chat_llm, mock_index)
 
     def test_add_note_from_transcript_success(self, assistant, mock_chat_llm, mock_index):
-        mock_chat_llm.return_value = HumanMessage(content="Test Note")
+        mock_chat_llm.return_value = AIMessage(content="Test Note")
         mock_index.insert.return_value = None
         mock_index.storage_context.persist.return_value = None
 
@@ -54,7 +54,7 @@ class TestNotesAssistant:
         mock_index.storage_context.persist.assert_not_called()
 
     def test_insert_index_failure(self, assistant, mock_chat_llm, mock_index):
-        mock_chat_llm.return_value = HumanMessage(content="Test Note")
+        mock_chat_llm.return_value = AIMessage(content="Test Note")
         mock_index.insert.side_effect = Exception("Index insert failure")
         mock_index.storage_context.persist.return_value = None
 
@@ -69,7 +69,7 @@ class TestNotesAssistant:
         mock_index.storage_context.persist.assert_not_called()
 
     def test_persist_storage_context_failure(self, assistant, mock_chat_llm, mock_index):
-        mock_chat_llm.return_value = HumanMessage(content="Test Note")
+        mock_chat_llm.return_value = AIMessage(content="Test Note")
         mock_index.insert.return_value = None
         mock_index.storage_context.persist.side_effect = Exception("Persist storage context failure")
 
@@ -94,7 +94,7 @@ class TestNotesAssistant:
 
     def test_answer_question_empty_response(self, assistant, mock_chat_llm, mock_index):
         mock_index.as_query_engine.return_value.query.return_value = Response(response=None)
-        mock_chat_llm.return_value = "Fallback Answer"
+        mock_chat_llm.return_value = AIMessage(content="Fallback Answer")
 
         result = assistant.answer_question("Test Question")
 

@@ -24,7 +24,7 @@ class NotesAssistant:
         self.index = index
         self.query_engine = self.index.as_query_engine()
 
-    def add_note_from_transcript(self, transcript):
+    def add_note_from_transcript(self, transcript: str) -> str:
         messages = [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript=transcript))]
 
         try:
@@ -36,12 +36,12 @@ class NotesAssistant:
             logger.error("Note improvement failed", exc_info=e)
             raise NotesAssistantException("Note improvement failed") from e
 
-    def answer_question(self, question):
+    def answer_question(self, question: str) -> str:
         try:
             response = self.query_engine.query(question)
             if not response.response:
                 logger.warning(f"No context found for question '{question}'. Falling back to LLM.")
-                return self.chat_llm([HumanMessage(content=question)])
+                return self.chat_llm([HumanMessage(content=question)]).content
             return response.response
         except Exception as e:
             logger.error("Failed answering question", exc_info=e)
