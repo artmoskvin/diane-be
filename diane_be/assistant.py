@@ -15,21 +15,6 @@ Transcript: {transcript}
 Note:""",
 )
 
-QUESTION_PROMPT = PromptTemplate(
-    input_variables=["question", "relevant_notes"],
-    template="""You are a notetaker. You received a question and the list of relevant notes from a user. \
-Answer the question using information from the relevant notes. Be concise.
- 
-Question: {question}
-
-Relevant notes:
-''' 
-{relevant_notes}
-'''
-
-Answer:""",
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +39,9 @@ class NotesAssistant:
     def answer_question(self, question):
         try:
             response = self.query_engine.query(question)
+            if not response.response:
+                logger.warning(f"No context found for question '{question}'. Falling back to LLM.")
+                return self.chat_llm([HumanMessage(content=question)])
             return response.response
         except Exception as e:
             logger.error("Failed answering question", exc_info=e)
