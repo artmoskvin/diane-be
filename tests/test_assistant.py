@@ -1,9 +1,13 @@
-from unittest.mock import ANY
-from langchain.schema import HumanMessage, AIMessage
-from llama_index import Document, Response
 import pytest
+from langchain.schema import HumanMessage, AIMessage
 
 from diane_be.assistant import IMPROVEMENT_PROMPT, NotesAssistant, NotesAssistantException
+
+REQUEST = "test-request"
+RESPONSE = "Test Answer"
+NOTE = "Test Note"
+TRANSCRIPT = "Test Transcript"
+USER_ID = "test-user"
 
 
 class TestNotesAssistant:
@@ -12,111 +16,83 @@ class TestNotesAssistant:
         return mocker.patch('diane_be.assistant.BaseChatModel')
 
     @pytest.fixture
-    def mock_index(self, mocker):
-        return mocker.patch('diane_be.assistant.BaseIndex')
+    def mock_storage(self, mocker):
+        return mocker.patch('diane_be.assistant.NoteStorage')
 
     @pytest.fixture
-    def assistant(self, mock_chat_llm, mock_index):
-        return NotesAssistant(mock_chat_llm, mock_index)
+    def assistant(self, mock_chat_llm, mock_storage):
+        return NotesAssistant(mock_chat_llm, mock_storage)
 
-    def test_add_note_from_transcript_success(self, assistant, mock_chat_llm, mock_index):
-        mock_chat_llm.return_value = AIMessage(content="Test Note")
-        mock_index.insert.return_value = None
-        mock_index.storage_context.persist.return_value = None
+    def test_add_note_from_transcript_success(self, assistant, mock_chat_llm, mock_storage):
+        mock_chat_llm.return_value = AIMessage(content=NOTE)
+        mock_storage.insert.return_value = None
 
-        assistant = NotesAssistant(mock_chat_llm, mock_index)
-        result = assistant.add_note_from_transcript("Test Transcript")
+        assistant = NotesAssistant(mock_chat_llm, mock_storage)
+        result = assistant.add_note_from_transcript(USER_ID, TRANSCRIPT)
 
-        assert result == "Test Note"
+        assert result == NOTE
 
         mock_chat_llm.assert_called_once_with(
-            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript="Test Transcript"))])
+            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript=TRANSCRIPT))])
 
-        expected_document = Document(text="Test Note")
-        expected_document.id_ = ANY
+        mock_storage.insert.assert_called_once_with(USER_ID, NOTE)
 
-        mock_index.insert.assert_called_once_with(expected_document)
-        mock_index.storage_context.persist.assert_called_once()
-
-    def test_add_note_from_transcript_failure(self, assistant, mock_chat_llm, mock_index):
+    def test_add_note_from_transcript_failure(self, assistant, mock_chat_llm, mock_storage):
         mock_chat_llm.side_effect = Exception("Chat LLM failure")
-        mock_index.insert.return_value = None
-        mock_index.storage_context.persist.return_value = None
 
-        assistant = NotesAssistant(mock_chat_llm, mock_index)
         with pytest.raises(NotesAssistantException) as exc_info:
-            assistant.add_note_from_transcript("Test Transcript")
+            assistant.add_note_from_transcript(USER_ID, TRANSCRIPT)
 
         assert "Note improvement failed" in str(exc_info.value)
         mock_chat_llm.assert_called_once_with(
-            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript="Test Transcript"))])
-        mock_index.insert.assert_not_called()
-        mock_index.storage_context.persist.assert_not_called()
+            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript=TRANSCRIPT))])
 
-    def test_insert_index_failure(self, assistant, mock_chat_llm, mock_index):
-        mock_chat_llm.return_value = AIMessage(content="Test Note")
-        mock_index.insert.side_effect = Exception("Index insert failure")
-        mock_index.storage_context.persist.return_value = None
+    def test_insert_index_failure(self, assistant, mock_chat_llm, mock_storage):
+        mock_chat_llm.return_value = AIMessage(content=NOTE)
+        mock_storage.insert.side_effect = Exception("Index insert failure")
 
-        assistant = NotesAssistant(mock_chat_llm, mock_index)
         with pytest.raises(NotesAssistantException) as exc_info:
-            assistant.add_note_from_transcript("Test Transcript")
+            assistant.add_note_from_transcript(USER_ID, TRANSCRIPT)
 
         assert "Note improvement failed" in str(exc_info.value)
         mock_chat_llm.assert_called_once_with(
-            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript="Test Transcript"))])
-        mock_index.insert.assert_called_once()
-        mock_index.storage_context.persist.assert_not_called()
+            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript=TRANSCRIPT))])
+        mock_storage.insert.assert_called_once()
 
-    def test_persist_storage_context_failure(self, assistant, mock_chat_llm, mock_index):
-        mock_chat_llm.return_value = AIMessage(content="Test Note")
-        mock_index.insert.return_value = None
-        mock_index.storage_context.persist.side_effect = Exception("Persist storage context failure")
+    def test_answer_question_success(self, assistant, mock_chat_llm, mock_storage):
+        mock_storage.query.return_value = RESPONSE
 
-        assistant = NotesAssistant(mock_chat_llm, mock_index)
-        with pytest.raises(NotesAssistantException) as exc_info:
-            assistant.add_note_from_transcript("Test Transcript")
+        result = assistant.answer_question(USER_ID, REQUEST)
 
-        assert "Note improvement failed" in str(exc_info.value)
-        mock_chat_llm.assert_called_once_with(
-            [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript="Test Transcript"))])
-        mock_index.insert.assert_called_once_with(ANY)
-        mock_index.storage_context.persist.assert_called_once()
-
-    def test_answer_question_success(self, assistant, mock_chat_llm, mock_index):
-        mock_index.as_query_engine.return_value.query.return_value = Response(response="Test Answer")
-
-        result = assistant.answer_question("Test Question")
-
-        assert result == "Test Answer"
+        assert result == RESPONSE
 
         mock_chat_llm.assert_not_called()
 
-    def test_answer_question_empty_response(self, assistant, mock_chat_llm, mock_index):
-        mock_index.as_query_engine.return_value.query.return_value = Response(response=None)
-        mock_chat_llm.return_value = AIMessage(content="Fallback Answer")
+    def test_answer_question_empty_response(self, assistant, mock_chat_llm, mock_storage):
+        mock_storage.query.return_value = None
+        mock_chat_llm.return_value = AIMessage(content=RESPONSE)
 
-        result = assistant.answer_question("Test Question")
+        result = assistant.answer_question(USER_ID, REQUEST)
 
-        assert result == "Fallback Answer"
+        assert result == RESPONSE
 
-        mock_chat_llm.assert_called_once_with([HumanMessage(content="Test Question")])
+        mock_chat_llm.assert_called_once_with([HumanMessage(content=REQUEST)])
 
-    def test_query_engine_failure(self, assistant, mock_chat_llm, mock_index):
-        mock_index.as_query_engine.return_value.query.side_effect = Exception("Query engine failure")
+    def test_query_engine_failure(self, assistant, mock_chat_llm, mock_storage):
+        mock_storage.query.side_effect = Exception("Query engine failure")
 
         with pytest.raises(NotesAssistantException) as exc_info:
-            result = assistant.answer_question("Test Question")
+            assistant.answer_question(USER_ID, REQUEST)
 
         assert "Failed answering question" in str(exc_info.value)
         mock_chat_llm.assert_not_called()
 
-    def test_answer_question_empty_response_llm_failure(self, assistant, mock_chat_llm, mock_index):
-        mock_index.as_query_engine.return_value.query.return_value = Response(response=None)
+    def test_answer_question_empty_response_llm_failure(self, assistant, mock_chat_llm, mock_storage):
+        mock_storage.query.return_value = None
         mock_chat_llm.side_effect = Exception("Chat LLM failure")
 
         with pytest.raises(NotesAssistantException) as exc_info:
-            result = assistant.answer_question("Test Question")
+            assistant.answer_question(USER_ID, REQUEST)
 
         assert "Failed answering question" in str(exc_info.value)
-        mock_chat_llm.assert_called_once_with([HumanMessage(content="Test Question")])
+        mock_chat_llm.assert_called_once_with([HumanMessage(content=REQUEST)])

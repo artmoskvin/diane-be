@@ -13,6 +13,10 @@ bp = Blueprint('notes', __name__, url_prefix='/notes')
 def add_note():
     logger.debug("Received add_note request")
 
+    user_id = request.headers.get('user_id', None)
+    if not user_id:
+        abort(400, description="Empty user_id")
+    
     transcript = request.json.get("transcript", None)
 
     if transcript:
@@ -20,7 +24,7 @@ def add_note():
         try:
             notes_assistant: NotesAssistant = current_app.config['NOTES_ASSISTANT']
 
-            note = notes_assistant.add_note_from_transcript(transcript)
+            note = notes_assistant.add_note_from_transcript(user_id, transcript)
 
             logger.debug("Note: " + note)
 
@@ -36,6 +40,10 @@ def add_note():
 def ask_notes():
     logger.debug("Received ask_notes request")
 
+    user_id = request.headers.get('user_id', None)
+    if not user_id:
+        abort(400, description="Empty user_id")
+
     question = request.args.get("q", None)
 
     if question:
@@ -43,7 +51,7 @@ def ask_notes():
         try:
             notes_assistant: NotesAssistant = current_app.config['NOTES_ASSISTANT']
 
-            response = notes_assistant.answer_question(question)
+            response = notes_assistant.answer_question(user_id, question)
 
             logger.debug(f"Response: {response}")
 

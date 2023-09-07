@@ -3,8 +3,8 @@ import logging
 from langchain import PromptTemplate
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import HumanMessage
-from llama_index import Document
-from llama_index.indices.base import BaseIndex
+
+from diane_be.storage import NoteStorage
 
 IMPROVEMENT_PROMPT = PromptTemplate(
     input_variables=["transcript"],
@@ -19,32 +19,28 @@ logger = logging.getLogger(__name__)
 
 
 class NotesAssistant:
-    def __init__(self, chat_llm: BaseChatModel, index: BaseIndex):
+    def __init__(self, chat_llm: BaseChatModel, storage: NoteStorage):
         self.chat_llm = chat_llm
-        self.index = index
-        self.query_engine = self.index.as_query_engine()
+        self.storage = storage
 
-    def add_note_from_transcript(self, transcript: str) -> str:
+    def add_note_from_transcript(self, user_id: str, transcript: str) -> str:
         messages = [HumanMessage(content=IMPROVEMENT_PROMPT.format(transcript=transcript))]
 
         try:
             note = self.chat_llm(messages).content
-            self.index.insert(Document(text=note))
-            self.index.storage_context.persist()
+            self.storage.insert(user_id, note)
             return note
         except Exception as e:
-            logger.error("Note improvement failed", exc_info=e)
             raise NotesAssistantException("Note improvement failed") from e
 
-    def answer_question(self, question: str) -> str:
+    def answer_question(self, user_id: str, question: str) -> str:
         try:
-            response = self.query_engine.query(question)
-            if not response.response:
+            response = self.storage.query(user_id, question)
+            if not response:
                 logger.warning(f"No context found for question '{question}'. Falling back to LLM.")
                 return self.chat_llm([HumanMessage(content=question)]).content
-            return response.response
+            return response
         except Exception as e:
-            logger.error("Failed answering question", exc_info=e)
             raise NotesAssistantException("Failed answering question") from e
 
 

@@ -2,13 +2,13 @@ import logging
 import os
 
 import openai
+import s3fs
 from dotenv import load_dotenv
 from flask import Flask
 from langchain.chat_models import ChatOpenAI
-from llama_index import StorageContext, load_index_from_storage, VectorStoreIndex
-from llama_index.storage.storage_context import DEFAULT_PERSIST_DIR
 
 from diane_be.assistant import NotesAssistant
+from diane_be.storage import NoteStorage
 
 
 def create_app(test_config=None):
@@ -30,13 +30,21 @@ def create_app(test_config=None):
 
         chat_llm = ChatOpenAI(temperature=0)
 
-        if os.path.exists(DEFAULT_PERSIST_DIR):
-            storage_context = StorageContext.from_defaults(persist_dir=DEFAULT_PERSIST_DIR)
-            index = load_index_from_storage(storage_context)
-        else:
-            index = VectorStoreIndex([])
+        aws_key = os.environ['AWS_ACCESS_KEY_ID']
+        aws_secret = os.environ['AWS_SECRET_ACCESS_KEY']
+        r2_account_id = os.environ['R2_ACCOUNT_ID']
 
-        app.config['NOTES_ASSISTANT'] = NotesAssistant(chat_llm, index)
+        assert aws_key is not None and aws_key != ""
+
+        s3 = s3fs.S3FileSystem(
+            key=aws_key,
+            secret=aws_secret,
+            endpoint_url=f'https://{r2_account_id}.r2.cloudflarestorage.com'
+        )
+
+        note_storage = NoteStorage(s3)
+
+        app.config['NOTES_ASSISTANT'] = NotesAssistant(chat_llm, note_storage)
     else:
         # load the test config if passed in
         app.config.from_mapping(test_config)
