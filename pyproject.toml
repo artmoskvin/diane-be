@@ -17,6 +17,7 @@ nltk = "^3.8.1"
 gunicorn = "^21.2.0"
 pytest = "^7.4.1"
 pytest-mock = "^3.11.1"
+s3fs = "^2023.9.0"
 
 
 [build-system]
