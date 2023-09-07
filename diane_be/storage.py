@@ -1,8 +1,9 @@
 import logging
 from typing import Optional
 
-from llama_index import Document, StorageContext, load_index_from_storage, VectorStoreIndex
+from llama_index import Document, StorageContext, load_index_from_storage, VectorStoreIndex, ServiceContext
 from llama_index.indices.base import BaseIndex
+from llama_index.llms import OpenAI
 
 BASE_PATH = 'diane-notes/{user_id}/storage'
 
@@ -13,6 +14,8 @@ class NoteStorage:
     def __init__(self, fs=None):
         self.fs = fs
         self.indices: dict[str, BaseIndex] = {}
+        self.llm = OpenAI(temperature=0.1, model="gpt-4")
+        self.service_context = ServiceContext.from_defaults(llm=self.llm)
 
     def insert(self, user_id: str, note: str) -> None:
         index_path = BASE_PATH.format(user_id=user_id)
@@ -42,7 +45,7 @@ class NoteStorage:
         except (ValueError, FileNotFoundError):
             logger.debug(f"Index not found at {path}. Creating new index.")
 
-            index = VectorStoreIndex([])
+            index = VectorStoreIndex(nodes=[], service_context=self.service_context)
             self.indices[path] = index
         except Exception as e:
             raise NoteStorageException(f"Failed getting index from {path}") from e
@@ -51,7 +54,7 @@ class NoteStorage:
 
     def _load_index(self, path: str) -> BaseIndex:
         sc = StorageContext.from_defaults(persist_dir=path, fs=self.fs)
-        return load_index_from_storage(sc)
+        return load_index_from_storage(storage_context=sc, service_context=self.service_context)
 
 
 class NoteStorageException(Exception):
